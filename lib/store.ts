@@ -7,6 +7,9 @@ export interface EditablePart {
   content: string;
   originalContent: string;
   isSelected: boolean;
+  tagName?: string; // The actual HTML tag name (h1, p, a, etc.)
+  href?: string; // For anchor tags, store the href attribute
+  originalHref?: string; // Original href value
 }
 
 interface EmailStore {
@@ -31,6 +34,7 @@ interface EmailStore {
   togglePartSelection: (partId: string) => void;
   confirmSelection: () => void;
   updatePartContent: (partId: string, newContent: string) => void;
+  updatePartHref: (partId: string, newHref: string) => void;
   generatePreview: () => void;
   setPreviewOpen: (open: boolean) => void;
   resetStore: () => void;
@@ -67,6 +71,12 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
       part.id === partId ? { ...part, content: newContent } : part
     )
   })),
+
+  updatePartHref: (partId: string, newHref: string) => set((state) => ({
+    selectedParts: state.selectedParts.map(part =>
+      part.id === partId ? { ...part, href: newHref } : part
+    )
+  })),
   
   generatePreview: () => {
     const { uploadedHtml, selectedParts } = get();
@@ -74,7 +84,15 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     
     selectedParts.forEach(part => {
       if (part.type === 'text') {
+        // Update text content
         previewHtml = previewHtml.replace(part.originalContent, part.content);
+        
+        // Update href for anchor tags if changed
+        if (part.tagName === 'a' && part.href && part.originalHref && part.href !== part.originalHref) {
+          const selector = part.selector.replace(/\[|\]/g, '');
+          const regex = new RegExp(`(<[^>]*${selector}[^>]*href=")[^"]*("[^>]*>)`, 'g');
+          previewHtml = previewHtml.replace(regex, `$1${part.href}$2`);
+        }
       } else if (part.type === 'image') {
         previewHtml = previewHtml.replace(
           new RegExp(`src="${part.originalContent}"`, 'g'),

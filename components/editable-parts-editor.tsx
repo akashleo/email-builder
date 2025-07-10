@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,34 +8,62 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Type, Image, Eye, Save } from 'lucide-react';
+import { Type, Image, Save, Link } from 'lucide-react';
 import { useEmailStore } from '@/lib/store';
 import { EditablePart } from '@/lib/store';
 
 export default function EditablePartsEditor() {
-  const { selectedParts, updatePartContent, generatePreview, setPreviewOpen } = useEmailStore();
+  const { selectedParts, updatePartContent, updatePartHref, generatePreview } = useEmailStore();
   const [editingPart, setEditingPart] = useState<string | null>(null);
   const [tempContent, setTempContent] = useState<string>('');
+  const [tempHref, setTempHref] = useState<string>('');
 
   const handleStartEdit = (part: EditablePart) => {
     setEditingPart(part.id);
     setTempContent(part.content);
+    setTempHref(part.href || '');
   };
 
   const handleSaveEdit = (partId: string) => {
     updatePartContent(partId, tempContent);
+    if (tempHref) {
+      updatePartHref(partId, tempHref);
+    }
     setEditingPart(null);
     setTempContent('');
+    setTempHref('');
+    // Auto-generate preview after edit
+    setTimeout(() => generatePreview(), 100);
   };
 
   const handleCancelEdit = () => {
     setEditingPart(null);
     setTempContent('');
+    setTempHref('');
   };
 
-  const handlePreview = () => {
+  // Auto-generate preview when component mounts
+  useEffect(() => {
     generatePreview();
-    setPreviewOpen(true);
+  }, [selectedParts, generatePreview]);
+
+  const getTagDisplayName = (tagName: string) => {
+    const tagMap: Record<string, string> = {
+      'h1': 'H1 Heading',
+      'h2': 'H2 Heading', 
+      'h3': 'H3 Heading',
+      'h4': 'H4 Heading',
+      'h5': 'H5 Heading',
+      'h6': 'H6 Heading',
+      'p': 'Paragraph',
+      'span': 'Span Text',
+      'div': 'Div Block',
+      'a': 'Link',
+      'td': 'Table Cell',
+      'th': 'Table Header',
+      'li': 'List Item'
+    };
+    return tagMap[tagName] || tagName.toUpperCase();
   };
 
   if (selectedParts.length === 0) {
@@ -66,9 +94,9 @@ export default function EditablePartsEditor() {
         </p>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col p-0">
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0 max-h-[calc(100vh-10rem)]">
         <ScrollArea className="flex-1 px-6">
-          <div className="space-y-6">
+          <div className="space-y-6 pb-4">
             {selectedParts.map((part, index) => (
               <div key={part.id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -79,11 +107,17 @@ export default function EditablePartsEditor() {
                       <Image className="h-4 w-4 text-green-600" />
                     )}
                     <span className="text-sm font-medium text-gray-900">
-                      {part.selector}
+                      {part.tagName ? getTagDisplayName(part.tagName) : part.selector}
                     </span>
                     <Badge variant="outline" className="text-xs">
                       {part.type}
                     </Badge>
+                    {part.tagName === 'a' && (
+                      <Badge variant="outline" className="text-xs text-blue-600">
+                        <Link className="h-3 w-3 mr-1" />
+                        link
+                      </Badge>
+                    )}
                   </div>
                   {editingPart !== part.id && (
                     <Button
@@ -120,6 +154,23 @@ export default function EditablePartsEditor() {
                         />
                       )}
                     </div>
+                    
+                    {/* Href editing for anchor tags */}
+                    {part.tagName === 'a' && (
+                      <div>
+                        <Label htmlFor={`edit-href-${part.id}`}>
+                          Link URL (href)
+                        </Label>
+                        <Input
+                          id={`edit-href-${part.id}`}
+                          value={tempHref}
+                          onChange={(e) => setTempHref(e.target.value)}
+                          className="mt-1"
+                          placeholder="Enter link URL"
+                        />
+                      </div>
+                    )}
+                    
                     <div className="flex space-x-2">
                       <Button
                         onClick={() => handleSaveEdit(part.id)}
@@ -139,28 +190,29 @@ export default function EditablePartsEditor() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <p className="text-sm text-gray-700 font-medium mb-1">Current Content:</p>
-                    <p className="text-sm text-gray-900 break-all">
-                      {part.content}
-                    </p>
+                  <div className="space-y-2">
+                    <div className="bg-gray-50 p-3 rounded border">
+                      <p className="text-sm text-gray-700 font-medium mb-1">Current Content:</p>
+                      <p className="text-sm text-gray-900 break-all">
+                        {part.content}
+                      </p>
+                    </div>
+                    
+                    {/* Show href for anchor tags */}
+                    {part.tagName === 'a' && part.href && (
+                      <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                        <p className="text-sm text-blue-700 font-medium mb-1">Link URL:</p>
+                        <p className="text-sm text-blue-900 break-all">
+                          {part.href}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             ))}
           </div>
         </ScrollArea>
-        
-        <div className="p-6 border-t bg-gray-50">
-          <Button
-            onClick={handlePreview}
-            className="w-full"
-            size="lg"
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            Preview Email
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );

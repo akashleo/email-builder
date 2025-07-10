@@ -34,11 +34,11 @@ export default function FileUpload() {
 
     try {
       const htmlContent = await validateEmailFile(file);
-      setUploadedHtml(htmlContent);
       
-      // Parse HTML to find editable parts
-      const editableParts = parseEmailHtml(htmlContent);
-      setEditableParts(editableParts);
+      // Parse HTML to find editable parts and get modified HTML
+      const parseResult = parseEmailHtml(htmlContent);
+      setUploadedHtml(parseResult.modifiedHtml);
+      setEditableParts(parseResult.editableParts);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Failed to process file');
       setUploadedFile(null);
@@ -73,12 +73,14 @@ export default function FileUpload() {
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Email Template</h2>
-        <p className="text-gray-600">
-          Upload your HTML email template to start editing
-        </p>
-      </div>
+      {!uploadedFile && (
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Email Template</h2>
+          <p className="text-gray-600">
+            Upload your HTML email template to start editing
+          </p>
+        </div>
+      )}
 
       {uploadError && (
         <Alert variant="destructive">

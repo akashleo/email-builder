@@ -28,29 +28,63 @@ export default function EditablePartsSelector() {
   } = useEmailStore();
   const router = useRouter();
   const [selectedCount, setSelectedCount] = useState(0);
-  const [highlightedPartId, setHighlightedPartId] = useState<string | null>(null);
+
+  // Helper function to get tag display name
+  const getTagDisplayName = (tagName: string) => {
+    const tagMap: Record<string, string> = {
+      'h1': 'H1 Heading',
+      'h2': 'H2 Heading', 
+      'h3': 'H3 Heading',
+      'h4': 'H4 Heading',
+      'h5': 'H5 Heading',
+      'h6': 'H6 Heading',
+      'p': 'Paragraph',
+      'span': 'Span Text',
+      'div': 'Div Block',
+      'a': 'Link',
+      'td': 'Table Cell',
+      'th': 'Table Header',
+      'li': 'List Item',
+      'img': 'Image'
+    };
+    return tagMap[tagName] || tagName?.toUpperCase() || 'Element';
+  };
+
+  // Helper function to get tag color classes
+  const getTagColorClasses = (tagName: string) => {
+    const colorMap: Record<string, { bg: string, text: string, border: string }> = {
+      'h1': { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
+      'h2': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
+      'h3': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+      'h4': { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
+      'h5': { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
+      'h6': { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
+      'p': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+      'span': { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
+      'div': { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200' },
+      'a': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+      'td': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+      'th': { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
+      'li': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+      'img': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' }
+    };
+    return colorMap[tagName] || { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200' };
+  };
 
   useEffect(() => {
     setSelectedCount(editableParts.filter(part => part.isSelected).length);
   }, [editableParts]);
 
-  // Listen for highlight events from the preview
+  // Listen for toggle selection events from the preview
   useEffect(() => {
-    const handleHighlight = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      setHighlightedPartId(customEvent.detail.partId);
-    };
-
     const handleToggleSelection = (e: Event) => {
       const customEvent = e as CustomEvent;
       togglePartSelection(customEvent.detail.partId);
     };
 
-    window.addEventListener('highlight-element', handleHighlight);
     window.addEventListener('toggle-part-selection', handleToggleSelection);
     
     return () => {
-      window.removeEventListener('highlight-element', handleHighlight);
       window.removeEventListener('toggle-part-selection', handleToggleSelection);
     };
   }, [togglePartSelection]);
@@ -58,12 +92,6 @@ export default function EditablePartsSelector() {
   const handleConfirmSelection = () => {
     confirmSelection();
     router.push('/edit');
-  };
-
-  const handleElementHover = (partId: string | null) => {
-    setHighlightedPartId(partId);
-    // Emit the event for the preview to catch
-    highlightElement(partId);
   };
 
   const textParts = editableParts.filter(part => part.type === 'text');
@@ -96,19 +124,32 @@ export default function EditablePartsSelector() {
         </p>
         <div className="flex items-center space-x-4 text-xs text-gray-500 mt-2">
           <div className="flex items-center space-x-1">
-            <div className="w-3 h-3 border-2 border-blue-500 bg-blue-100 rounded-sm"></div>
-            <span>Selected (persistent highlight)</span>
+            <div className="w-16 h-0.5 bg-green-500"></div>
+            <span>Text (underline)</span>
           </div>
           <div className="flex items-center space-x-1">
-            <div className="w-3 h-3 border-2 border-dashed border-green-500 bg-green-50 rounded-sm"></div>
-            <span>Hover preview</span>
+            <div className="w-3 h-3 border-2 border-green-500 rounded-sm"></div>
+            <span>Image (border)</span>
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col p-0">
+      {/* Confirm Selection Button - Moved to top */}
+      <div className="px-6 pb-4">
+        <Button
+          onClick={handleConfirmSelection}
+          disabled={selectedCount === 0}
+          className="w-full"
+          size="lg"
+        >
+          <CheckCircle className="h-4 w-4 mr-2" />
+          Confirm Selection ({selectedCount} parts)
+        </Button>
+      </div>
+      
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0">
         <ScrollArea className="flex-1 px-6">
-          <div className="space-y-6">
+          <div className="space-y-6 pb-4">
             {textParts.length > 0 && (
               <div>
                 <div className="flex items-center space-x-2 mb-3">
@@ -123,13 +164,9 @@ export default function EditablePartsSelector() {
                       className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-all ${
                         part.isSelected 
                           ? 'border-blue-500 bg-blue-50 shadow-sm' 
-                          : highlightedPartId === part.id
-                            ? 'border-green-500 bg-green-50'
-                            : 'border-gray-200 hover:border-gray-300'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
                       onClick={() => togglePartSelection(part.id)}
-                      onMouseEnter={() => handleElementHover(part.id)}
-                      onMouseLeave={() => handleElementHover(null)}
                     >
                       <Checkbox
                         checked={part.isSelected}
@@ -138,14 +175,14 @@ export default function EditablePartsSelector() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {part.selector}
-                          </p>
+                          <div className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border ${getTagColorClasses(part.tagName || '').bg} ${getTagColorClasses(part.tagName || '').text} ${getTagColorClasses(part.tagName || '').border}`}>
+                            {getTagDisplayName(part.tagName || '')}
+                          </div>
                           {part.isSelected && (
                             <Eye className="h-3 w-3 text-blue-600" />
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">
+                        <p className="text-sm text-gray-600 line-clamp-2 mt-1">
                           {part.content}
                         </p>
                       </div>
@@ -171,13 +208,9 @@ export default function EditablePartsSelector() {
                         className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-all ${
                           part.isSelected 
                             ? 'border-green-500 bg-green-50 shadow-sm' 
-                            : highlightedPartId === part.id
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 hover:border-gray-300'
+                            : 'border-gray-200 hover:border-gray-300'
                         }`}
                         onClick={() => togglePartSelection(part.id)}
-                        onMouseEnter={() => handleElementHover(part.id)}
-                        onMouseLeave={() => handleElementHover(null)}
                       >
                         <Checkbox
                           checked={part.isSelected}
@@ -186,14 +219,14 @@ export default function EditablePartsSelector() {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {part.selector}
-                            </p>
+                            <div className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border ${getTagColorClasses(part.tagName || 'img').bg} ${getTagColorClasses(part.tagName || 'img').text} ${getTagColorClasses(part.tagName || 'img').border}`}>
+                              {getTagDisplayName(part.tagName || 'img')}
+                            </div>
                             {part.isSelected && (
                               <Eye className="h-3 w-3 text-green-600" />
                             )}
                           </div>
-                          <p className="text-xs text-gray-600 truncate">
+                          <p className="text-xs text-gray-600 truncate mt-1">
                             {part.content}
                           </p>
                         </div>
@@ -205,18 +238,6 @@ export default function EditablePartsSelector() {
             )}
           </div>
         </ScrollArea>
-        
-        <div className="p-6 border-t bg-gray-50">
-          <Button
-            onClick={handleConfirmSelection}
-            disabled={selectedCount === 0}
-            className="w-full"
-            size="lg"
-          >
-            <CheckCircle className="h-4 w-4 mr-2" />
-            Confirm Selection ({selectedCount} parts)
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );

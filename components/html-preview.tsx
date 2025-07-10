@@ -29,56 +29,7 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
     };
   }, [onElementHover]);
 
-  // Apply highlighting when a part is hovered or selected
-  useEffect(() => {
-    if (!iframeRef.current || !uploadedHtml) return;
-
-    const iframe = iframeRef.current;
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!iframeDoc) return;
-
-    // Reset all highlights first
-    const allHighlighted = iframeDoc.querySelectorAll('.email-builder-highlight, .email-builder-selected');
-    allHighlighted.forEach((el) => {
-      el.classList.remove('email-builder-highlight', 'email-builder-selected');
-    });
-
-    // Add persistent highlights for selected elements
-    editableParts.forEach(part => {
-      if (part.isSelected) {
-        try {
-          const element = iframeDoc.querySelector(part.selector);
-          if (element) {
-            element.classList.add('email-builder-selected');
-          }
-        } catch (error) {
-          console.error('Error selecting element:', error);
-        }
-      }
-    });
-
-    // Add temporary highlight to the hovered element if any
-    if (highlightedPartId) {
-      const hoveredPart = editableParts.find(part => part.id === highlightedPartId);
-      if (hoveredPart) {
-        try {
-          const element = iframeDoc.querySelector(hoveredPart.selector);
-          if (element) {
-            // Only add hover highlight if not already selected
-            if (!hoveredPart.isSelected) {
-              element.classList.add('email-builder-highlight');
-            }
-            // Scroll into view if needed
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        } catch (error) {
-          console.error('Error highlighting element:', error);
-        }
-      }
-    }
-  }, [highlightedPartId, uploadedHtml, editableParts]);
-
-  // Initialize iframe content and add event listeners
+  // Initialize iframe content
   useEffect(() => {
     if (!iframeRef.current || !uploadedHtml) return;
 
@@ -89,77 +40,159 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
     // Write the HTML content to the iframe
     iframeDoc.open();
     
-    // Inject our custom styles for highlighting
-    const htmlWithStyles = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            .email-builder-selected {
-              outline: 3px solid #3b82f6 !important;
-              background-color: rgba(59, 130, 246, 0.15) !important;
-              transition: outline 0.2s ease, background-color 0.2s ease;
-            }
-            .email-builder-highlight {
-              outline: 2px dashed #22c55e !important;
-              background-color: rgba(34, 197, 94, 0.1) !important;
-              transition: outline 0.2s ease, background-color 0.2s ease;
-            }
-            .email-builder-hover {
-              outline: 2px dashed #6b7280 !important;
-              background-color: rgba(107, 114, 128, 0.05) !important;
-            }
-          </style>
-        </head>
-        <body>
-          ${uploadedHtml}
-        </body>
-      </html>
-    `;
+    // Check if uploadedHtml already has head/body structure
+    const hasHeadTag = uploadedHtml.includes('<head>');
+    const hasBodyTag = uploadedHtml.includes('<body>');
     
-    iframeDoc.write(htmlWithStyles);
+    let htmlContent = '';
+    
+    if (hasHeadTag && hasBodyTag) {
+      // Insert our styles into the existing head
+      const headEndIndex = uploadedHtml.indexOf('</head>');
+      const stylesTag = `
+        <style>
+          /* Text elements - green underline */
+          .email-builder-selected-text {
+            text-decoration: underline !important;
+            text-decoration-color: #22c55e !important;
+            text-decoration-thickness: 2px !important;
+            text-underline-offset: 2px !important;
+          }
+          
+          /* Image elements - green border */
+          .email-builder-selected-image {
+            outline: 3px solid #22c55e !important;
+            outline-offset: 2px !important;
+          }
+          
+          /* Cursor pointer for interactive elements */
+          [data-email-builder-id] {
+            cursor: pointer;
+          }
+          
+          /* Hover effect for all editable elements */
+          [data-email-builder-id]:hover {
+            opacity: 0.9;
+          }
+        </style>
+      `;
+      
+      htmlContent = `<!DOCTYPE html><html>${uploadedHtml.slice(0, headEndIndex)}${stylesTag}${uploadedHtml.slice(headEndIndex)}</html>`;
+    } else {
+      // Wrap in proper HTML structure
+      htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              /* Text elements - green underline */
+              .email-builder-selected-text {
+                text-decoration: underline !important;
+                text-decoration-color: #22c55e !important;
+                text-decoration-thickness: 2px !important;
+                text-underline-offset: 2px !important;
+              }
+              
+              /* Image elements - green border */
+              .email-builder-selected-image {
+                outline: 3px solid #22c55e !important;
+                outline-offset: 2px !important;
+              }
+              
+              /* Cursor pointer for interactive elements */
+              [data-email-builder-id] {
+                cursor: pointer;
+              }
+              
+              /* Hover effect for all editable elements */
+              [data-email-builder-id]:hover {
+                opacity: 0.9;
+              }
+            </style>
+          </head>
+          <body>
+            ${uploadedHtml}
+          </body>
+        </html>
+      `;
+    }
+    
+    iframeDoc.write(htmlContent);
     iframeDoc.close();
 
-    // Add hover effects to all editable elements
+    // Wait for iframe to load then apply highlights and event listeners
+    const applyHighlightsAndListeners = () => {
+      // Apply persistent highlights for selected elements
+      editableParts.forEach(part => {
+        try {
+          const element = iframeDoc.querySelector(part.selector);
+          if (element) {
+            // Remove all highlight classes first
+            element.classList.remove('email-builder-selected-text', 'email-builder-selected-image');
+            
+            // Apply highlight if selected
+            if (part.isSelected) {
+              if (part.type === 'text') {
+                element.classList.add('email-builder-selected-text');
+              } else if (part.type === 'image') {
+                element.classList.add('email-builder-selected-image');
+              }
+            }
+
+            // Add click event to toggle selection
+            element.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // Emit event to toggle selection
+              const toggleEvent = new CustomEvent('toggle-part-selection', { 
+                detail: { partId: part.id } 
+              });
+              window.dispatchEvent(toggleEvent);
+            });
+          } else {
+            console.warn(`Element not found for selector: ${part.selector}`);
+          }
+        } catch (error) {
+          console.error('Error processing element:', error);
+        }
+      });
+    };
+
+    // Apply highlights after a short delay to ensure iframe is loaded
+    setTimeout(applyHighlightsAndListeners, 100);
+
+  }, [uploadedHtml, editableParts]);
+
+  // Update highlights when selection changes
+  useEffect(() => {
+    if (!iframeRef.current || !uploadedHtml) return;
+
+    const iframe = iframeRef.current;
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iframeDoc || !iframeDoc.body) return;
+
+    // Apply persistent highlights for selected elements
     editableParts.forEach(part => {
       try {
         const element = iframeDoc.querySelector(part.selector);
         if (element) {
-          // Add hover event
-          element.addEventListener('mouseenter', () => {
-            if (!part.isSelected) {
-              element.classList.add('email-builder-hover');
+          // Remove all highlight classes first
+          element.classList.remove('email-builder-selected-text', 'email-builder-selected-image');
+          
+          // Apply highlight if selected
+          if (part.isSelected) {
+            if (part.type === 'text') {
+              element.classList.add('email-builder-selected-text');
+            } else if (part.type === 'image') {
+              element.classList.add('email-builder-selected-image');
             }
-            // Use the custom event system
-            highlightElement(part.id);
-          });
-          
-          // Remove hover event
-          element.addEventListener('mouseleave', () => {
-            element.classList.remove('email-builder-hover');
-            highlightElement(null);
-          });
-          
-          // Add click event to toggle selection
-          element.addEventListener('click', (e) => {
-            e.preventDefault();
-            // Emit event to toggle selection
-            const toggleEvent = new CustomEvent('toggle-part-selection', { 
-              detail: { partId: part.id } 
-            });
-            window.dispatchEvent(toggleEvent);
-          });
+          }
         }
       } catch (error) {
-        console.error('Error adding event listeners:', error);
+        console.error('Error applying highlight:', error);
       }
     });
-
-    // Cleanup function
-    return () => {
-      // No need to remove event listeners as the iframe will be recreated
-    };
-  }, [uploadedHtml, editableParts]);
+  }, [editableParts]);
 
   if (!uploadedHtml) {
     return (
