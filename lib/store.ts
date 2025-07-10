@@ -1,0 +1,100 @@
+import { create } from 'zustand';
+
+export interface EditablePart {
+  id: string;
+  type: 'text' | 'image';
+  selector: string;
+  content: string;
+  originalContent: string;
+  isSelected: boolean;
+}
+
+interface EmailStore {
+  // Upload state
+  uploadedFile: File | null;
+  uploadedHtml: string;
+  uploadError: string | null;
+  
+  // Editable parts
+  editableParts: EditablePart[];
+  selectedParts: EditablePart[];
+  
+  // Preview state
+  previewHtml: string;
+  isPreviewOpen: boolean;
+  
+  // Actions
+  setUploadedFile: (file: File | null) => void;
+  setUploadedHtml: (html: string) => void;
+  setUploadError: (error: string | null) => void;
+  setEditableParts: (parts: EditablePart[]) => void;
+  togglePartSelection: (partId: string) => void;
+  confirmSelection: () => void;
+  updatePartContent: (partId: string, newContent: string) => void;
+  generatePreview: () => void;
+  setPreviewOpen: (open: boolean) => void;
+  resetStore: () => void;
+}
+
+export const useEmailStore = create<EmailStore>((set, get) => ({
+  // Initial state
+  uploadedFile: null,
+  uploadedHtml: '',
+  uploadError: null,
+  editableParts: [],
+  selectedParts: [],
+  previewHtml: '',
+  isPreviewOpen: false,
+
+  // Actions
+  setUploadedFile: (file) => set({ uploadedFile: file }),
+  setUploadedHtml: (html) => set({ uploadedHtml: html }),
+  setUploadError: (error) => set({ uploadError: error }),
+  setEditableParts: (parts) => set({ editableParts: parts }),
+  
+  togglePartSelection: (partId) => set((state) => ({
+    editableParts: state.editableParts.map(part =>
+      part.id === partId ? { ...part, isSelected: !part.isSelected } : part
+    )
+  })),
+  
+  confirmSelection: () => set((state) => ({
+    selectedParts: state.editableParts.filter(part => part.isSelected)
+  })),
+  
+  updatePartContent: (partId, newContent) => set((state) => ({
+    selectedParts: state.selectedParts.map(part =>
+      part.id === partId ? { ...part, content: newContent } : part
+    )
+  })),
+  
+  generatePreview: () => {
+    const { uploadedHtml, selectedParts } = get();
+    let previewHtml = uploadedHtml;
+    
+    selectedParts.forEach(part => {
+      if (part.type === 'text') {
+        previewHtml = previewHtml.replace(part.originalContent, part.content);
+      } else if (part.type === 'image') {
+        previewHtml = previewHtml.replace(
+          new RegExp(`src="${part.originalContent}"`, 'g'),
+          `src="${part.content}"`
+        );
+      }
+    });
+    
+    set({ previewHtml });
+  },
+  
+  setPreviewOpen: (open) => set({ isPreviewOpen: open }),
+  
+  resetStore: () => set({
+    uploadedFile: null,
+    uploadedHtml: '',
+    uploadError: null,
+    editableParts: [],
+    selectedParts: [],
+    previewHtml: '',
+    isPreviewOpen: false,
+  }),
+}));
