@@ -80,3 +80,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Fix Radix ScrollArea extra wrapper applying `display: table` which breaks flex layouts */
+  [data-radix-scroll-area-viewport] > div {
+    display: block !important;
+    min-width: 100%;
+  }
+}

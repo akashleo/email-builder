@@ -2,8 +2,8 @@ import { create } from 'zustand';
 
 export interface EditablePart {
   id: string;
-  type: 'text' | 'image';
   selector: string;
+  type: 'text' | 'image' | 'code';
   content: string;
   originalContent: string;
   isSelected: boolean;
@@ -80,27 +80,45 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   
   generatePreview: () => {
     const { uploadedHtml, selectedParts } = get();
+    if (!uploadedHtml) {
+      set({ previewHtml: '' });
+      return;
+    }
+    
     let previewHtml = uploadedHtml;
     
+    // Create a DOM parser to work with the HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(previewHtml, 'text/html');
+    
     selectedParts.forEach(part => {
+      // Find element by data-email-builder-id attribute
+      const element = doc.querySelector(`[data-email-builder-id="${part.id}"]`);
+      if (!element) {
+        console.warn(`Element with id ${part.id} not found`);
+        return;
+      }
+      
       if (part.type === 'text') {
-        // Update text content
-        previewHtml = previewHtml.replace(part.originalContent, part.content);
+        // Update text content directly
+        element.textContent = part.content;
         
         // Update href for anchor tags if changed
-        if (part.tagName === 'a' && part.href && part.originalHref && part.href !== part.originalHref) {
-          const selector = part.selector.replace(/\[|\]/g, '');
-          const regex = new RegExp(`(<[^>]*${selector}[^>]*href=")[^"]*("[^>]*>)`, 'g');
-          previewHtml = previewHtml.replace(regex, `$1${part.href}$2`);
+        if (part.tagName === 'a' && part.href && element instanceof HTMLAnchorElement) {
+          element.href = part.href;
         }
       } else if (part.type === 'image') {
-        previewHtml = previewHtml.replace(
-          new RegExp(`src="${part.originalContent}"`, 'g'),
-          `src="${part.content}"`
-        );
+        if (element instanceof HTMLImageElement) {
+          element.src = part.content;
+        }
+      } else if (part.type === 'code') {
+        // Replace full HTML block for complex code elements
+        element.outerHTML = part.content;
       }
     });
     
+    // Convert back to string
+    previewHtml = doc.documentElement.outerHTML;
     set({ previewHtml });
   },
   

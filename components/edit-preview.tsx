@@ -7,12 +7,12 @@ import { useEmailStore } from '@/lib/store';
 import { useEffect } from 'react';
 
 export default function EditPreview() {
-  const { previewHtml, generatePreview } = useEmailStore();
+  const { previewHtml, generatePreview, selectedParts } = useEmailStore();
 
   // Generate preview on mount and when data changes
   useEffect(() => {
     generatePreview();
-  }, [generatePreview]);
+  }, [generatePreview, selectedParts]);
 
   const handleDownload = () => {
     const blob = new Blob([previewHtml], { type: 'text/html' });
@@ -48,6 +48,7 @@ export default function EditPreview() {
       <CardContent className="flex-1 flex flex-col p-0 min-h-0">
         <div className="flex-1 border rounded-lg mx-6 mb-6 overflow-hidden">
           <iframe
+            key={previewHtml.length} // Force re-render when content changes
             srcDoc={previewHtml}
             className="w-full h-full border-0"
             title="Email Preview"

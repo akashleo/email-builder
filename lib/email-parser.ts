@@ -10,14 +10,66 @@ export function parseEmailHtml(html: string): ParseResult {
   const doc = parser.parseFromString(html, 'text/html');
   const editableParts: EditablePart[] = [];
   let elementCounter = 0;
-  
-  // Find text elements - prioritize headings and paragraphs
+
+  // --- Phase 1: Identify Code Blocks ---
+  const codeBlockSelectors = ['table', 'div', 'ul', 'ol'];
+  const codeBlocks: Element[] = [];
+  codeBlockSelectors.forEach(selector => {
+    const elements = doc.querySelectorAll(selector);
+    elements.forEach(element => {
+      // More selective filtering for code blocks
+      if (element.innerHTML.trim().length > 100 && element.children.length > 1) {
+        
+        // Exclude simple wrapper divs - only consider complex structures
+        if (selector === 'div' && element.children.length < 3) {
+          return;
+        }
+        
+        // Exclude elements that are just wrappers for a single editable element
+        if (element.children.length === 1 && (codeBlockSelectors.includes(element.children[0].tagName.toLowerCase()) || ['p', 'h1', 'h2', 'h3'].includes(element.children[0].tagName.toLowerCase()))) {
+            return;
+        }
+
+        // For tables, always include if they have structure
+        // For other elements, be more selective
+        const shouldIncludeAsCodeBlock = 
+          selector === 'table' ||
+          (selector === 'ul' || selector === 'ol') ||
+          (selector === 'div' && element.children.length >= 3);
+          
+        if (shouldIncludeAsCodeBlock) {
+          const uniqueId = `email-builder-code-${elementCounter++}`;
+          element.setAttribute('data-email-builder-id', uniqueId);
+          
+          // Only mark direct structural children, not all descendants
+          Array.from(element.children).forEach(child => {
+            if (['div', 'tr', 'li', 'section', 'article'].includes(child.tagName.toLowerCase())) {
+              child.setAttribute('data-email-builder-codeless-ignore', 'true');
+            }
+          });
+
+          editableParts.push({
+            id: `code-${selector}-${uniqueId}`,
+            type: 'code',
+            selector: `[data-email-builder-id="${uniqueId}"]`,
+            content: element.innerHTML,
+            originalContent: element.innerHTML,
+            isSelected: false,
+            tagName: element.tagName.toLowerCase(),
+          });
+          codeBlocks.push(element);
+        }
+      }
+    });
+  });
+
+  // --- Phase 2: Identify Text Elements (that are not inside code blocks) ---
   const textSelectors = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'td', 'th', 'a', 'div', 'li'];
   textSelectors.forEach(selector => {
     const elements = doc.querySelectorAll(selector);
     elements.forEach((element) => {
-      // Skip if element already has a data-email-builder-id (avoid duplicates)
-      if (element.hasAttribute('data-email-builder-id')) return;
+      // Skip if element is inside a code block or already has an ID
+      if (element.hasAttribute('data-email-builder-id') || element.hasAttribute('data-email-builder-codeless-ignore')) return;
       
       const textContent = element.textContent?.trim();
       if (textContent && textContent.length > 0) {
@@ -29,11 +81,16 @@ export function parseEmailHtml(html: string): ParseResult {
           }
           
           // Skip elements that are containers for other editable elements
-          const hasEditableChildren = Array.from(element.children).some(
-            child => textSelectors.includes(child.tagName.toLowerCase())
+          // But allow elements with only inline styling elements (span, strong, em, etc.)
+          const inlineElements = ['span', 'strong', 'b', 'em', 'i', 'u', 'small', 'mark', 'del', 'ins', 'sub', 'sup'];
+          const hasBlockChildren = Array.from(element.children).some(
+            child => {
+              const tagName = child.tagName.toLowerCase();
+              return textSelectors.includes(tagName) && !inlineElements.includes(tagName);
+            }
           );
           
-          if (!hasEditableChildren || selector.match(/^h[1-6]$/)) {
+          if (!hasBlockChildren || selector.match(/^h[1-6]$/)) {
             const uniqueId = `email-builder-${elementCounter++}`;
             element.setAttribute('data-email-builder-id', uniqueId);
             
@@ -56,10 +113,13 @@ export function parseEmailHtml(html: string): ParseResult {
       }
     });
   });
-  
-  // Find image elements
+
+  // --- Phase 3: Identify Image Elements (that are not inside code blocks) ---
   const images = doc.querySelectorAll('img');
   images.forEach((img) => {
+    // Skip if element is inside a code block
+    if (img.hasAttribute('data-email-builder-id') || img.hasAttribute('data-email-builder-codeless-ignore')) return;
+
     const src = img.getAttribute('src');
     if (src) {
       const uniqueId = `email-builder-${elementCounter++}`;
@@ -75,7 +135,7 @@ export function parseEmailHtml(html: string): ParseResult {
       });
     }
   });
-  
+
   // Get the complete HTML including head styles
   let modifiedHtml = '';
   

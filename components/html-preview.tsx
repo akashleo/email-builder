@@ -64,14 +64,21 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
             outline: 3px solid #22c55e !important;
             outline-offset: 2px !important;
           }
+
+          /* Code elements - blue border */
+          .email-builder-selected-code {
+            outline: 3px solid #3b82f6 !important;
+            outline-offset: 2px !important;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5) !important;
+          }
           
-          /* Cursor pointer for interactive elements */
-          [data-email-builder-id] {
+          /* Cursor pointer for interactive elements (but not code blocks) */
+          [data-email-builder-id]:not([data-email-builder-id^="email-builder-code-"]) {
             cursor: pointer;
           }
           
-          /* Hover effect for all editable elements */
-          [data-email-builder-id]:hover {
+          /* Hover effect for interactive elements */
+          [data-email-builder-id]:not([data-email-builder-id^="email-builder-code-"]):hover {
             opacity: 0.9;
           }
         </style>
@@ -98,14 +105,21 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
                 outline: 3px solid #22c55e !important;
                 outline-offset: 2px !important;
               }
+
+              /* Code elements - blue border */
+              .email-builder-selected-code {
+                outline: 3px solid #3b82f6 !important;
+                outline-offset: 2px !important;
+                box-shadow: 0 0 15px rgba(59, 130, 246, 0.5) !important;
+              }
               
-              /* Cursor pointer for interactive elements */
-              [data-email-builder-id] {
+              /* Cursor pointer for interactive elements (but not code blocks) */
+              [data-email-builder-id]:not([data-email-builder-id^="email-builder-code-"]) {
                 cursor: pointer;
               }
               
-              /* Hover effect for all editable elements */
-              [data-email-builder-id]:hover {
+              /* Hover effect for interactive elements */
+              [data-email-builder-id]:not([data-email-builder-id^="email-builder-code-"]):hover {
                 opacity: 0.9;
               }
             </style>
@@ -128,7 +142,7 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
           const element = iframeDoc.querySelector(part.selector);
           if (element) {
             // Remove all highlight classes first
-            element.classList.remove('email-builder-selected-text', 'email-builder-selected-image');
+            element.classList.remove('email-builder-selected-text', 'email-builder-selected-image', 'email-builder-selected-code');
             
             // Apply highlight if selected
             if (part.isSelected) {
@@ -136,19 +150,23 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
                 element.classList.add('email-builder-selected-text');
               } else if (part.type === 'image') {
                 element.classList.add('email-builder-selected-image');
+              } else if (part.type === 'code') {
+                element.classList.add('email-builder-selected-code');
               }
             }
 
-            // Add click event to toggle selection
-            element.addEventListener('click', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              // Emit event to toggle selection
-              const toggleEvent = new CustomEvent('toggle-part-selection', { 
-                detail: { partId: part.id } 
+            // Add click event to toggle selection (only for non-code elements)
+            if (part.type !== 'code') {
+              element.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Emit event to toggle selection
+                const toggleEvent = new CustomEvent('toggle-part-selection', { 
+                  detail: { partId: part.id } 
+                });
+                window.dispatchEvent(toggleEvent);
               });
-              window.dispatchEvent(toggleEvent);
-            });
+            }
           } else {
             console.warn(`Element not found for selector: ${part.selector}`);
           }
@@ -177,7 +195,7 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
         const element = iframeDoc.querySelector(part.selector);
         if (element) {
           // Remove all highlight classes first
-          element.classList.remove('email-builder-selected-text', 'email-builder-selected-image');
+          element.classList.remove('email-builder-selected-text', 'email-builder-selected-image', 'email-builder-selected-code');
           
           // Apply highlight if selected
           if (part.isSelected) {
@@ -185,6 +203,8 @@ export default function HtmlPreview({ highlightedPartId, onElementHover }: HtmlP
               element.classList.add('email-builder-selected-text');
             } else if (part.type === 'image') {
               element.classList.add('email-builder-selected-image');
+            } else if (part.type === 'code') {
+              element.classList.add('email-builder-selected-code');
             }
           }
         }

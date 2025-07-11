@@ -8,20 +8,28 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Type, Image, Save, Link } from 'lucide-react';
+import { Type, Image, Save, Link, Code, Pencil } from 'lucide-react';
 import { useEmailStore } from '@/lib/store';
 import { EditablePart } from '@/lib/store';
+import CodeEditorModal from './code-editor-modal';
 
 export default function EditablePartsEditor() {
   const { selectedParts, updatePartContent, updatePartHref, generatePreview } = useEmailStore();
   const [editingPart, setEditingPart] = useState<string | null>(null);
   const [tempContent, setTempContent] = useState<string>('');
   const [tempHref, setTempHref] = useState<string>('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCodePart, setEditingCodePart] = useState<EditablePart | null>(null);
 
   const handleStartEdit = (part: EditablePart) => {
-    setEditingPart(part.id);
-    setTempContent(part.content);
-    setTempHref(part.href || '');
+    if (part.type === 'code') {
+      setEditingCodePart(part);
+      setIsModalOpen(true);
+    } else {
+      setEditingPart(part.id);
+      setTempContent(part.content);
+      setTempHref(part.href || '');
+    }
   };
 
   const handleSaveEdit = (partId: string) => {
@@ -42,9 +50,20 @@ export default function EditablePartsEditor() {
     setTempHref('');
   };
 
-  // Auto-generate preview when component mounts
+  const handleSaveCode = (partId: string, newContent: string) => {
+    updatePartContent(partId, newContent);
+    setIsModalOpen(false);
+    setEditingCodePart(null);
+    // Auto-generate preview after edit
+    setTimeout(() => generatePreview(), 100);
+  };
+
+  // Auto-generate preview when component mounts and reset editing state
   useEffect(() => {
     generatePreview();
+    setEditingPart(null);
+    setIsModalOpen(false);
+    setEditingCodePart(null);
   }, [selectedParts, generatePreview]);
 
   const getTagDisplayName = (tagName: string) => {
@@ -61,7 +80,10 @@ export default function EditablePartsEditor() {
       'a': 'Link',
       'td': 'Table Cell',
       'th': 'Table Header',
-      'li': 'List Item'
+      'li': 'List Item',
+      'table': 'Table',
+      'ul': 'List (Unordered)',
+      'ol': 'List (Ordered)',
     };
     return tagMap[tagName] || tagName.toUpperCase();
   };
@@ -94,26 +116,28 @@ export default function EditablePartsEditor() {
         </p>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col p-0 min-h-0 max-h-[calc(100vh-10rem)]">
-        <ScrollArea className="flex-1 px-6">
-          <div className="space-y-6 pb-4">
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0 ">
+        <ScrollArea className="flex-1 px-6 max-h-[calc(100vh-12rem)]">
+          <div className="space-y-6 py-4 flex flex-col">
             {selectedParts.map((part, index) => (
-              <div key={part.id} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
+              <div key={part.id} className="border rounded-lg p-4 space-y-3 w-full">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
                     {part.type === 'text' ? (
-                      <Type className="h-4 w-4 text-blue-600" />
+                      <Type className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                    ) : part.type === 'image' ? (
+                      <Image className="h-4 w-4 text-green-600 flex-shrink-0" />
                     ) : (
-                      <Image className="h-4 w-4 text-green-600" />
+                      <Code className="h-4 w-4 text-purple-600 flex-shrink-0" />
                     )}
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm font-medium text-gray-900 truncate">
                       {part.tagName ? getTagDisplayName(part.tagName) : part.selector}
                     </span>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs flex-shrink-0">
                       {part.type}
                     </Badge>
                     {part.tagName === 'a' && (
-                      <Badge variant="outline" className="text-xs text-blue-600">
+                      <Badge variant="outline" className="text-xs text-blue-600 flex-shrink-0">
                         <Link className="h-3 w-3 mr-1" />
                         link
                       </Badge>
@@ -122,9 +146,11 @@ export default function EditablePartsEditor() {
                   {editingPart !== part.id && (
                     <Button
                       onClick={() => handleStartEdit(part)}
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
+                      className="flex-shrink-0"
                     >
+                      <Pencil className="h-3 w-3 mr-1" />
                       Edit
                     </Button>
                   )}
@@ -133,9 +159,11 @@ export default function EditablePartsEditor() {
                 {editingPart === part.id ? (
                   <div className="space-y-3">
                     <div>
-                      <Label htmlFor={`edit-${part.id}`}>
-                        {part.type === 'text' ? 'Text Content' : 'Image URL'}
-                      </Label>
+                      {part.type === 'text' ? (
+                        <Label htmlFor={`edit-${part.id}`}>
+                          {part.type === 'text' ? 'Text Content' : 'Image URL'}
+                        </Label>
+                      ) : null}
                       {part.type === 'text' ? (
                         <Textarea
                           id={`edit-${part.id}`}
@@ -191,12 +219,14 @@ export default function EditablePartsEditor() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="bg-gray-50 p-3 rounded border">
-                      <p className="text-sm text-gray-700 font-medium mb-1">Current Content:</p>
-                      <p className="text-sm text-gray-900 break-all">
-                        {part.content}
-                      </p>
-                    </div>
+                    {part.type !== 'code' && (
+                       <div className="bg-gray-50 p-3 rounded border">
+                        <p className="text-sm text-gray-700 font-medium mb-1">Current Content:</p>
+                        <p className="text-sm text-gray-900 break-all">
+                          {part.content}
+                        </p>
+                      </div>
+                    )}
                     
                     {/* Show href for anchor tags */}
                     {part.tagName === 'a' && part.href && (
@@ -207,6 +237,23 @@ export default function EditablePartsEditor() {
                         </p>
                       </div>
                     )}
+
+                    {/* Show code block content */}
+                    {part.type === 'code' && (
+                      <div className="bg-gray-50 p-3 rounded border">
+                         <p className="text-sm text-gray-700 font-medium mb-1">HTML Content:</p>
+                         <div className="text-xs text-gray-800 bg-white p-2 rounded-md overflow-x-auto font-mono">
+                          {part.content.split('\n').slice(0, 3).map((line, index) => (
+                            <div key={index} className="whitespace-nowrap overflow-hidden text-ellipsis">
+                              {line.trim()}
+                            </div>
+                          ))}
+                          {part.content.split('\n').length > 3 && (
+                            <div className="text-gray-500 mt-1">...</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -214,6 +261,12 @@ export default function EditablePartsEditor() {
           </div>
         </ScrollArea>
       </CardContent>
+      <CodeEditorModal
+        isOpen={isModalOpen}
+        part={editingCodePart}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveCode}
+      />
     </Card>
   );
 }
