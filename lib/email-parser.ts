@@ -12,7 +12,7 @@ export function parseEmailHtml(html: string): ParseResult {
   let elementCounter = 0;
 
   // --- Phase 1: Identify Code Blocks ---
-  const codeBlockSelectors = ['table', 'div', 'ul', 'ol'];
+  const codeBlockSelectors = ['table', 'div', 'ul', 'ol', 'section', 'article'];
   const codeBlocks: Element[] = [];
   codeBlockSelectors.forEach(selector => {
     const elements = doc.querySelectorAll(selector);

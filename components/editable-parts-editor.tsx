@@ -41,7 +41,7 @@ export default function EditablePartsEditor() {
     setTempContent('');
     setTempHref('');
     // Auto-generate preview after edit
-    setTimeout(() => generatePreview(), 100);
+    generatePreview();
   };
 
   const handleCancelEdit = () => {
@@ -55,7 +55,7 @@ export default function EditablePartsEditor() {
     setIsModalOpen(false);
     setEditingCodePart(null);
     // Auto-generate preview after edit
-    setTimeout(() => generatePreview(), 100);
+    generatePreview();
   };
 
   // Auto-generate preview when component mounts and reset editing state

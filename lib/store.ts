@@ -52,9 +52,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
 
   // Actions
   setUploadedFile: (file) => set({ uploadedFile: file }),
-  setUploadedHtml: (html) => set({ uploadedHtml: html }),
+  setUploadedHtml: (html) => set({ uploadedHtml: html, selectedParts: [], previewHtml: '' }),
   setUploadError: (error) => set({ uploadError: error }),
-  setEditableParts: (parts) => set({ editableParts: parts }),
+  setEditableParts: (parts) => set({ editableParts: parts, selectedParts: [] }),
   
   togglePartSelection: (partId) => set((state) => ({
     editableParts: state.editableParts.map(part =>
@@ -67,12 +67,18 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
   })),
   
   updatePartContent: (partId, newContent) => set((state) => ({
+    editableParts: state.editableParts.map(part =>
+      part.id === partId ? { ...part, content: newContent } : part
+    ),
     selectedParts: state.selectedParts.map(part =>
       part.id === partId ? { ...part, content: newContent } : part
     )
   })),
 
   updatePartHref: (partId: string, newHref: string) => set((state) => ({
+    editableParts: state.editableParts.map(part =>
+      part.id === partId ? { ...part, href: newHref } : part
+    ),
     selectedParts: state.selectedParts.map(part =>
       part.id === partId ? { ...part, href: newHref } : part
     )
@@ -92,10 +98,9 @@ export const useEmailStore = create<EmailStore>((set, get) => ({
     const doc = parser.parseFromString(previewHtml, 'text/html');
     
     selectedParts.forEach(part => {
-      // Find element by data-email-builder-id attribute
-      const element = doc.querySelector(`[data-email-builder-id="${part.id}"]`);
+      // Find element using the part's selector
+      const element = doc.querySelector(part.selector);
       if (!element) {
-        console.warn(`Element with id ${part.id} not found`);
         return;
       }
       

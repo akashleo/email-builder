@@ -2,17 +2,33 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Eye } from 'lucide-react';
+import { Download, Eye, RefreshCw } from 'lucide-react';
 import { useEmailStore } from '@/lib/store';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 export default function EditPreview() {
   const { previewHtml, generatePreview, selectedParts } = useEmailStore();
 
-  // Generate preview on mount and when data changes
+  // Create a stable key for the iframe based on content
+  const iframeKey = useMemo(() => {
+    return `preview-${previewHtml.length}-${previewHtml.slice(0, 100).replace(/\s/g, '').length}`;
+  }, [previewHtml]);
+
+  // Generate preview on mount
   useEffect(() => {
     generatePreview();
-  }, [generatePreview, selectedParts]);
+  }, [generatePreview]);
+
+  // Generate preview when selected parts change
+  useEffect(() => {
+    generatePreview();
+  }, [selectedParts, generatePreview]);
+
+
+
+  const handleRefresh = () => {
+    generatePreview();
+  };
 
   const handleDownload = () => {
     const blob = new Blob([previewHtml], { type: 'text/html' });
@@ -34,21 +50,31 @@ export default function EditPreview() {
             <Eye className="h-5 w-5" />
             <span>Live Preview</span>
           </div>
-          <Button
-            onClick={handleDownload}
-            variant="outline"
-            size="sm"
-          >
-            <Download className="h-4 w-4 mr-1" />
-            Download
-          </Button>
+          <div className="flex space-x-2">
+            <Button
+              onClick={handleRefresh}
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
+            <Button
+              onClick={handleDownload}
+              variant="outline"
+              size="sm"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Download
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
       
       <CardContent className="flex-1 flex flex-col p-0 min-h-0">
         <div className="flex-1 border rounded-lg mx-6 mb-6 overflow-hidden">
           <iframe
-            key={previewHtml.length} // Force re-render when content changes
+            key={iframeKey} // Force re-render when content changes
             srcDoc={previewHtml}
             className="w-full h-full border-0"
             title="Email Preview"
